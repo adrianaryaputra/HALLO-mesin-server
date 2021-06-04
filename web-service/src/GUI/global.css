@@ -1,0 +1,26 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background-color: black;
+    color: white;
+}
+
+:root {
+    --color-background: hsl(0, 0%, 0%);
+    --color-text-default: hsl(0, 0%, 90%);
+    --color-card-background: hsl(0, 0%, 10%);
+    --color-accent: hsl(210, 64%, 26%);
+    --color-accent-darker: hsl(210, 64%, 21%);
+    --color-state-normal:hsl(123, 91%, 27%);
+    --color-state-warning: hsl(46, 81%, 30%);
+    --color-state-danger: hsl(0, 70%, 35%);
+    --small: .2em;
+    --normal: .4em;
+    --medium: .6em;
+    --large: .8em;
+    --xlarge: 1em;
+}

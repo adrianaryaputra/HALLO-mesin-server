@@ -1,0 +1,38 @@
+version: '3'
+
+services: 
+
+  mongo-mesin-hallo:
+    container_name: hallo-mesin-mongo
+    restart: always
+    image: mongo
+    ports: 
+      - '27020:27017'
+    volumes: 
+      - ~/mongo/caster:/data/db 
+  
+  app-mesin-halo:
+    container_name: hallo-mesin-app
+    restart: always
+    build: ./app-service/
+    ports:
+      - '5003:5002'
+      - '8909:8899'
+    # links: 
+    #   - mongo-mesin-hallo
+    environment: 
+      - MQ_PORT=5002
+      - WS_PORT=8899
+      - DB_LINK=mongodb://mongo-mesin-hallo:27017/caster
+
+  web-mesin-hallo:
+    container_name: hallo-mesin-web
+    restart: always
+    build: ./web-service/
+    ports:
+      - '8908:8898'
+    environment: 
+      - WEB_PORT=8898
+    volumes: 
+      - ./web-service/src/GUI:/usr/src/app/src/GUI
+  

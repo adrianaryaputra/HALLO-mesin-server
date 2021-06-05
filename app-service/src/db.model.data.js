@@ -1,9 +1,8 @@
 module.exports = function(db){
 
     let dataSchema = new db.Schema({
-        AI: [Number],
-        DI: [Number],
-        TEMP: [Number],
+        COMMAND: String,
+        VALUE: Number,
         TIMESTAMP: Date,
     });
     

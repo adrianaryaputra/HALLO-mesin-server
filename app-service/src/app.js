@@ -1,5 +1,4 @@
 let deviceState = {};
-let dataBuffer = {};
 
 // database import
 const {mongoose, model} = require('./db.model');
@@ -37,11 +36,25 @@ aedes.subscribe("HALLO/#", (a,cb) => {
     const msg = JSON.parse(a.payload.toString());
     deviceState[name] = deviceState[name] || {};
 
-    // console.log(topic, msg);
+    console.log(topic, msg);
 
     switch(command) {
-        default:
+        case "count":
+            console.log("count:", deviceState[name].count, msg.payload);
+            updateState(name, {[command]: (deviceState[name].count + msg.payload) || 1});
             ws_broadcast(name, "STATE", deviceState[name]);
+            db_savedata(name, {
+                COMMAND: command,
+                VALUE: msg.payload,
+            })
+            break;
+        default:
+            updateState(name, {[command]: msg.payload});
+            ws_broadcast(name, "STATE", deviceState[name]);
+            db_savedata(name, {
+                COMMAND: command,
+                VALUE: msg.payload,
+            })
     }
 
     cb();
@@ -61,7 +74,7 @@ wss.on('connection', (ws) => {
     });
 });
 
-// initDataBuffer();
+syncState();
 
 function ws_broadcast(device, command, payload) {
     wss.clients.forEach((client) => {
@@ -77,107 +90,74 @@ function ws_broadcast(device, command, payload) {
 
 
 
-async function db_savedata(name) {
-    // if(
-    //     deviceState[name].PUNCH && 
-    //     deviceState[name].MOTOR_EN
-    // ) {
-    //     // simpan ke DB
-    //     try{
-    //         let dataToSave = {
-    //             AI: deviceState[name]["AI"],
-    //             DI: deviceState[name]["DI"],
-    //             TEMP: deviceState[name]["TEMP"],
-    //             TIMESTAMP: new Date(),
-    //         };
-    //         dataBuffering(name, dataToSave);
-    //         const save = await model.data.updateOne(
-    //             { NAMA_MESIN: name, DATE_FROM: new Date((new Date()).setSeconds(0,0)) },
-    //             {
-    //                 $push: {
-    //                     DATA: dataToSave,
-    //                 },
-    //                 $inc: { DATA_COUNT: 1 },
-    //                 $setOnInsert: { 
-    //                     NAMA_MESIN: name, 
-    //                     DATE_FROM: new Date((new Date()).setSeconds(0,0)),
-    //                     DATE_TO: new Date((new Date()).setSeconds(60,0)),
-    //                 },
-    //             },
-    //             { upsert: true }
-    //         );
-    //     } catch(e) {
-    //         console.error(e)
-    //     }
-    // }
+async function db_savedata(name, data) {
+    if(
+        data.COMMAND && 
+        data.VALUE
+    ) {
+        // simpan ke DB
+        try{
+            let dataToSave = {
+                ...data,
+                TIMESTAMP: new Date(),
+            };
+            const save = await model.data.updateOne(
+                { NAMA_MESIN: name, DATE_FROM: new Date((new Date()).setSeconds(0,0)) },
+                {
+                    $push: {
+                        DATA: dataToSave,
+                    },
+                    $inc: { DATA_COUNT: (data.COMMAND == "count" ? 1 : 0) },
+                    $setOnInsert: { 
+                        NAMA_MESIN: name, 
+                        DATE_FROM: new Date((new Date()).setSeconds(0,0)),
+                        DATE_TO: new Date((new Date()).setSeconds(60,0)),
+                    },
+                },
+                { upsert: true }
+            );
+        } catch(e) {
+            console.error(e)
+        }
+    }
+}
+
+
+
+async function syncState() {
+
+    let dbData = await db_getdata({
+        DATE_FROM: {$gte: new Date((new Date()).setHours(0,0,0,0))} 
+    });
+
+    if(Array.isArray(dbData)){
+        let punchCount = dbData.reduce((pre, cur) => {
+            if(pre[cur.NAMA_MESIN] === undefined) pre[cur.NAMA_MESIN] = 0;
+            pre[cur.NAMA_MESIN] += cur.DATA_COUNT;
+            return pre;
+        }, {});
+
+        console.log("punchCount", punchCount);
+
+        for (mesin in punchCount) {
+            updateState(mesin, {count: punchCount[mesin]});
+        }
+    }
+
+    setTimeout(() => syncState(), 6e4);
+
 }
 
 
 
 async function db_getdata(query) {
-    // try {
-    //     const result = await model.data.find(query);
-    //     return result;
-    // } catch(e) {
-    //     console.error(e);
-    // }
-    // return;
-}
-
-
-
-async function initDataBuffer() {
-
-    // dataBuffer = {}
-    // let dbData = await db_getdata({
-    //     DATE_FROM: {$gte: new Date(Date.now()-432e5)} 
-    // });
-    
-    // dbData.forEach(dbucket => {
-    //     if(dataBuffer[dbucket.NAMA_MESIN] === undefined) dataBuffer[dbucket.NAMA_MESIN] = [];
-    //     dataBuffer[dbucket.NAMA_MESIN].filter(data => new Date(data.DATE_FROM) > new Date(Date.now()-432e5));
-    //     dataBuffer[dbucket.NAMA_MESIN].push({
-    //         DATE_FROM: dbucket.DATE_FROM,
-    //         DATE_TO: dbucket.DATE_TO,
-    //         DATA: dbucket.DATA,
-    //         DATA_COUNT: dbucket.DATA_COUNT,
-    //         NAMA_MESIN: dbucket.NAMA_MESIN,
-    //     });
-    // });
-
-    // setTimeout(() => initDataBuffer(), 3e5);
-}
-
-
-
-function dataBuffering(name, data) {
-    // // check if time bucket is due
-    // let bufferDate;
-    // let currentDate;
-    // if(Object.keys(dataBuffer).length > 0){
-    //     bufferDate = new Date(dataBuffer[name][Object.keys(dataBuffer[name]).length-1].DATE_FROM);
-    //     currentDate = new Date((new Date()).setSeconds(0,0));
-    // } else {
-    //     dataBuffer[name] = [];
-    //     bufferDate = new Date(0);
-    //     currentDate = new Date();
-    // }
-    // if(bufferDate < currentDate){
-    //     dataBuffer[name].push({
-    //         DATE_FROM: currentDate,
-    //         NAMA_MESIN: name,
-    //         DATA_COUNT: 0,
-    //         DATE_TO: currentDate.setSeconds(60,0),
-    //         DATA: []
-    //     })
-    // }
-    // dataBuffer[name][Object.keys(dataBuffer[name]).length-1].DATA_COUNT += 1;
-    // dataBuffer[name][Object.keys(dataBuffer[name]).length-1].DATA.push({
-    //     AI: data.AI,
-    //     DI: data.DI,
-    //     TEMP: data.TEMP,
-    //     TIMESTAMP: data.TIMESTAMP
-    // });
+    try {
+        const result = await model.data.find(query);
+        return result;
+    } catch(e) {
+        console.error(e);
+    }
+    return;
 }
 
 
@@ -214,6 +194,7 @@ function ws_handleIncoming(client, command, value) {
 
 function updateState(name, obj) {
     for (const state in obj) {
+        if(deviceState[name] === undefined) deviceState[name] = {};
         deviceState[name][state] = obj[state];
     }
 }
